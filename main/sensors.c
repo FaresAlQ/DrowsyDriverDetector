@@ -140,10 +140,19 @@ void init_sensors(){
 	ESP_LOGI(TAG_S, "heart rate = %X %X", heart_data[0], heart_data[1]);
 	while(1){
 	
+<<<<<<< Updated upstream
 	time_t begin,end;
 	begin= time(NULL);
    	
 	   while(1){ // wait to begin calculating
+=======
+
+
+   while(1){ // wait to begin calculating
+		time_t begin,end;
+
+		begin= time(NULL);
+>>>>>>> Stashed changes
       	end = time(NULL);
 		//printf("waiting");
 		if((difftime(end,begin)) > 3.0){
@@ -168,12 +177,15 @@ void init_sensors(){
 		gyroZ = get_angle(byte_to_int(gyro_data[0], gyro_data[1]));
 		ESP_LOGI(TAG_S, "angle in Z direction = %f\n", gyroZ);
 
+<<<<<<< Updated upstream
 		int value = gyroThresh(gyroZ); // 1 for alarm 0 for nothing
 		if(value == 1){
 			printf("ALARM\n");
 			break;}
 
 
+=======
+>>>>>>> Stashed changes
 
 
 	}
