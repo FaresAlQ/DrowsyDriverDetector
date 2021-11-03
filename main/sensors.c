@@ -96,33 +96,28 @@ static esp_err_t i2c_master_init(void) {
     return i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
 }
 
-int gyroCt = 1;
-float gyroSum = 0;
+int hRcounter = 1;
+float hRsum = 0;
 
-int gyroThresh(float angle){
-   // WILL RETURN VALUE OF 1 FOR ALARMING VALUE
-
-   if(angle >=90){return 1;} // for edge case
+int heartRateThresh(float hRdata){
    float avg;
-   gyroSum += angle;
-   if(gyroCt < 20){ avg = gyroSum / gyroCt;gyroCt++;} // if we have less than 20 data points in average: Compute average //////WORKS
-   else{
-      // printf("Angle Average is:");
-      // printf("%f \n",avg);
-      gyroCt++;
-   }
+   hRsum += hRdata; // new data point added to sum
+   if(hRcounter < 20){ avg = hRsum / hRcounter;hRcounter++;}// if we have less than 20 data points in average: Compute average //////WORKS
+  else{hRcounter++;}
+   
    // otherwise compare each data point to average
-    if((angle > (avg*1.2)) && (gyroCt >= 20)){ // 10% decrease
-      printf("ANGLE ALARMING VALUE\n");
-      printf("angle corresponding is: ");
-      printf("%f\n",angle);
-      printf("This ocurred on the %dth try\n",gyroCt);
-      printf("Angle average is: ");
-      printf("%f\n",avg);
+    if((hRdata < (avg*0.9)) && hRcounter >= 20){ // 10% decrease
+    printf("hR average is: %f\n",avg);
+      printf("HR ALARMING VALUE\n");
+      printf("Datapoint corresponding is: ");
+      printf("%f\n",hRdata);
+
+      printf("This ocurred on the %dth try\n",hRcounter);
       return 1;
    }
 
    return 0;
+
 }
 
 int gyroCt = 1;
