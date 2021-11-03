@@ -125,6 +125,35 @@ int gyroThresh(float angle){
    return 0;
 }
 
+int gyroCt = 1;
+float gyroSum = 0;
+
+int gyroThresh(float angle){
+   // WILL RETURN VALUE OF 1 FOR ALARMING VALUE
+
+   if(angle >=90){return 1;} // for edge case
+   float avg;
+   gyroSum += angle;
+   if(gyroCt < 20){ avg = gyroSum / gyroCt;gyroCt++;} // if we have less than 20 data points in average: Compute average //////WORKS
+   else{
+      // printf("Angle Average is:");
+      // printf("%f \n",avg);
+      gyroCt++;
+   }
+   // otherwise compare each data point to average
+    if((angle > (avg*1.2)) && (gyroCt >= 20)){ // 10% decrease
+      printf("ANGLE ALARMING VALUE\n");
+      printf("angle corresponding is: ");
+      printf("%f\n",angle);
+      printf("This ocurred on the %dth try\n",gyroCt);
+      printf("Angle average is: ");
+      printf("%f\n",avg);
+      return 1;
+   }
+
+   return 0;
+}
+
 void init_sensors(){
 	uint8_t gyro_data[2];
 	uint8_t heart_data[2];
