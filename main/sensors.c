@@ -1,9 +1,9 @@
 #include <stdio.h>
-#include <Wire.h>
+//#include <wire.h>
 #include "esp_log.h"
 #include "driver/i2c.h"
-#include "SparkFun_Bio_Sensor_Hub_Library.h"
-#include "SparkFun_Bio_Sensor_Hub_Library.cpp"
+//#include "SparkFun_Bio_Sensor_Hub_Library.h"
+//#include "SparkFun_Bio_Sensor_Hub_Library.cpp"
 #include <time.h>
 
 
@@ -37,7 +37,7 @@ static const char *TAG_S = "sensors.c";
 int resPin = 4;
 int mfioPin = 5;
 
-SparkFun_Bio_Sensor_Hub bioHub(resPin, mfioPin);
+//SparkFun_Bio_Sensor_Hub bioHub(resPin, mfioPin);
 
 int byte_to_int(uint8_t data_0, uint8_t data_1){
 	int ret;
@@ -52,7 +52,7 @@ int byte_to_int(uint8_t data_0, uint8_t data_1){
 }
 
 float get_angle(int num){
-	return num / 250.0 * 0.1;
+	return num / 25.0; // * .1
 }
 
 static esp_err_t mpu_register_read(uint8_t reg_addr, uint8_t *data, size_t len) {
@@ -100,11 +100,11 @@ int hRcounter = 1;
 float hRsum = 0;
 
 int heartRateThresh(float hRdata){
-   float avg;
+   float avg = 0;
    hRsum += hRdata; // new data point added to sum
    if(hRcounter < 20){ avg = hRsum / hRcounter;hRcounter++;}// if we have less than 20 data points in average: Compute average //////WORKS
   else{hRcounter++;}
-   
+
    // otherwise compare each data point to average
     if((hRdata < (avg*0.9)) && hRcounter >= 20){ // 10% decrease
     printf("hR average is: %f\n",avg);
@@ -126,8 +126,9 @@ float gyroSum = 0;
 int gyroThresh(float angle){
    // WILL RETURN VALUE OF 1 FOR ALARMING VALUE
 
-   if(angle >=90){return 1;} // for edge case
-   float avg;
+   //if(angle >=90){return 1;} // for edge case
+   float avg = 0;
+   angle = abs(angle);
    gyroSum += angle;
    if(gyroCt < 20){ avg = gyroSum / gyroCt;gyroCt++;} // if we have less than 20 data points in average: Compute average //////WORKS
    else{
@@ -136,7 +137,7 @@ int gyroThresh(float angle){
       gyroCt++;
    }
    // otherwise compare each data point to average
-    if((angle > (avg*1.2)) && (gyroCt >= 20)){ // 10% decrease
+    if((angle > avg)){//(avg * 1.2)) && (gyroCt >= 20)){ // 10% decrease
       printf("ANGLE ALARMING VALUE\n");
       printf("angle corresponding is: ");
       printf("%f\n",angle);
@@ -160,27 +161,27 @@ void init_sensors(){
 	ESP_ERROR_CHECK(i2c_master_init());
 	ESP_LOGI(TAG_S, "I2C initialized successfully");
 
-	ESP_ERROR_CHECK(max_register_read(HEART_RATE_ADDR, heart_data, 2));
-	ESP_LOGI(TAG_S, "heart rate = %X %X", heart_data[0], heart_data[1]);
+	//ESP_ERROR_CHECK(max_register_read(HEART_RATE_ADDR, heart_data, 2));
+	//ESP_LOGI(TAG_S, "heart rate = %X %X", heart_data[0], heart_data[1]);
 	while(1){
-	
+
 	time_t begin,end;
 	begin= time(NULL);
-   	
+
 	   while(1){ // wait to begin calculating
       	end = time(NULL);
 		//printf("waiting");
-		if((difftime(end,begin)) > 3.0){
+		if((difftime(end,begin)) > 0.5){
 			break;
 		}
 		}
- 
+
 		/* Read the MPU GYRO_XOUT register */
 		ESP_ERROR_CHECK(mpu_register_read(GYRO_X_ADDR, gyro_data, 2));
 		gyroX = get_angle(byte_to_int(gyro_data[0], gyro_data[1])); // int gyro_x
 		ESP_LOGI(TAG_S, "angle in X direction = %f", gyroX);
 
-		
+
 
 		/* Read the MPU GYRO_YOUT register */
 		ESP_ERROR_CHECK(mpu_register_read(GYRO_Y_ADDR, gyro_data, 2)); // int gyro_y
@@ -192,10 +193,11 @@ void init_sensors(){
 		gyroZ = get_angle(byte_to_int(gyro_data[0], gyro_data[1]));
 		ESP_LOGI(TAG_S, "angle in Z direction = %f\n", gyroZ);
 
-		int value = gyroThresh(gyroZ); // 1 for alarm 0 for nothing
-		if(value == 1){
-			printf("ALARM\n");
-			break;}
+		int value = gyroThresh(gyroX); // 1 for alarm 0 for nothing
+		//if(value == 1){
+			//printf("ALARM\n");
+			//ESP_LOGI(TAG_S, "STOP/n");
+			//break;}
 
 
 
