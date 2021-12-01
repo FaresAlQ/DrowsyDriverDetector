@@ -1,11 +1,13 @@
 #include <stdio.h>
-//#include <wire.h>
+//#include <Wire.h>
 #include "esp_log.h"
 #include "driver/i2c.h"
+#include "driver/gpio.h"
 //#include "SparkFun_Bio_Sensor_Hub_Library.h"
 //#include "SparkFun_Bio_Sensor_Hub_Library.cpp"
 #include <time.h>
 
+void triggerSpeaker();
 
 static const char *TAG_S = "sensors.c";
 
@@ -34,8 +36,13 @@ static const char *TAG_S = "sensors.c";
 #define MAX_PWR_MGMT_1_REG_ADDR	0x6B
 #define MAX_RESET_BIT			7*/
 
+// Speaker pin
+#define GPIO_OUTPUT 21
+
 int resPin = 4;
 int mfioPin = 5;
+
+static xQueueHandle gpio_evt_queue = NULL;
 
 //SparkFun_Bio_Sensor_Hub bioHub(resPin, mfioPin);
 
@@ -52,7 +59,7 @@ int byte_to_int(uint8_t data_0, uint8_t data_1){
 }
 
 float get_angle(int num){
-	return num / 25.0; // * .1
+	return num / 25 * 0.1;
 }
 
 static esp_err_t mpu_register_read(uint8_t reg_addr, uint8_t *data, size_t len) {
@@ -126,9 +133,8 @@ float gyroSum = 0;
 int gyroThresh(float angle){
    // WILL RETURN VALUE OF 1 FOR ALARMING VALUE
 
-   //if(angle >=90){return 1;} // for edge case
+   if(angle >=90){return 1;} // for edge case
    float avg = 0;
-   angle = abs(angle);
    gyroSum += angle;
    if(gyroCt < 20){ avg = gyroSum / gyroCt;gyroCt++;} // if we have less than 20 data points in average: Compute average //////WORKS
    else{
@@ -137,17 +143,66 @@ int gyroThresh(float angle){
       gyroCt++;
    }
    // otherwise compare each data point to average
-    if((angle > avg)){//(avg * 1.2)) && (gyroCt >= 20)){ // 10% decrease
+    if((angle > 10)){//(avg*1.2)) && (gyroCt >= 20)){ // 10% decrease
       printf("ANGLE ALARMING VALUE\n");
       printf("angle corresponding is: ");
       printf("%f\n",angle);
       printf("This ocurred on the %dth try\n",gyroCt);
       printf("Angle average is: ");
       printf("%f\n",avg);
+      triggerSpeaker();
       return 1;
    }
 
    return 0;
+}
+
+static void gpio_task_example(void* arg)
+{
+    uint32_t io_num;
+    for(;;) {
+        if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
+            printf("GPIO[%d] intr, val: %d\n", io_num, gpio_get_level(io_num));
+        }
+    }
+}
+
+void triggerSpeaker(){
+
+	//zero-initialize the config structure.
+	gpio_config_t io_conf = {};
+	//disable interrupt
+	io_conf.intr_type = GPIO_INTR_DISABLE;
+	//set as output mode
+	io_conf.mode = GPIO_MODE_OUTPUT;
+	//bit mask of the pins that you want to set,e.g.GPIO18/19
+	io_conf.pin_bit_mask = (1ULL<<GPIO_OUTPUT);
+	//disable pull-down mode
+	io_conf.pull_down_en = 0;
+	//disable pull-up mode
+	io_conf.pull_up_en = 0;
+	//configure GPIO with the given settings
+	gpio_config(&io_conf);
+
+	//change gpio interrupt type for one pin
+	gpio_set_intr_type(GPIO_OUTPUT, GPIO_INTR_ANYEDGE);
+
+	//create a queue to handle gpio event from isr
+	gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
+	//start gpio task
+	xTaskCreate(gpio_task_example, "gpio_task_example", 2048, NULL, 10, NULL);
+
+	gpio_set_level(GPIO_OUTPUT, 1);
+	time_t begin,end;
+	begin= time(NULL);
+
+	while(1){ // wait to begin calculating
+	      	end = time(NULL);
+			//printf("waiting");
+			if((difftime(end,begin)) > 3){
+				break;
+	}}
+	gpio_set_level(GPIO_OUTPUT, 0);
 }
 
 void init_sensors(){
@@ -161,6 +216,9 @@ void init_sensors(){
 	ESP_ERROR_CHECK(i2c_master_init());
 	ESP_LOGI(TAG_S, "I2C initialized successfully");
 
+	/* Demonstrate writing by reseting the MPU9250 */
+	ESP_ERROR_CHECK(mpu_register_write_byte(MPU_PWR_MGMT_1_REG_ADDR, 1 << GYRO_RESET_BIT));
+
 	//ESP_ERROR_CHECK(max_register_read(HEART_RATE_ADDR, heart_data, 2));
 	//ESP_LOGI(TAG_S, "heart rate = %X %X", heart_data[0], heart_data[1]);
 	while(1){
@@ -171,7 +229,7 @@ void init_sensors(){
 	   while(1){ // wait to begin calculating
       	end = time(NULL);
 		//printf("waiting");
-		if((difftime(end,begin)) > 0.5){
+		if((difftime(end,begin)) > 0.1){
 			break;
 		}
 		}
@@ -179,26 +237,25 @@ void init_sensors(){
 		/* Read the MPU GYRO_XOUT register */
 		ESP_ERROR_CHECK(mpu_register_read(GYRO_X_ADDR, gyro_data, 2));
 		gyroX = get_angle(byte_to_int(gyro_data[0], gyro_data[1])); // int gyro_x
-		ESP_LOGI(TAG_S, "angle in X direction = %f", gyroX);
+		ESP_LOGI(TAG_S, "angle in X direction = %f\n", gyroX);
 
 
 
-		/* Read the MPU GYRO_YOUT register */
+		/* Read the MPU GYRO_YOUT register
 		ESP_ERROR_CHECK(mpu_register_read(GYRO_Y_ADDR, gyro_data, 2)); // int gyro_y
 		gyroY = get_angle(byte_to_int(gyro_data[0], gyro_data[1]));
 		ESP_LOGI(TAG_S, "angle in Y direction = %f", gyroY);
 
-		/* Read the MPU GYRO_XOUT register */
+		 Read the MPU GYRO_XOUT register
 		ESP_ERROR_CHECK(mpu_register_read(GYRO_Z_ADDR, gyro_data, 2)); // int gyro_z
 		gyroZ = get_angle(byte_to_int(gyro_data[0], gyro_data[1]));
-		ESP_LOGI(TAG_S, "angle in Z direction = %f\n", gyroZ);
+		ESP_LOGI(TAG_S, "angle in Z direction = %f\n", gyroZ);*/
 
 		int value = gyroThresh(gyroX); // 1 for alarm 0 for nothing
-		//if(value == 1){
-			//printf("ALARM\n");
-			//ESP_LOGI(TAG_S, "STOP/n");
-			//break;}
-
+		/*if(value == 1){
+			printf("ALARM\n");
+			break;}
+*/
 
 
 
